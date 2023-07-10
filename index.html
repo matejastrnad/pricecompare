@@ -1,1 +1,52 @@
-pip install python-firebase
+./serviceAccountKey.json
+from flask import Flask, jsonify
+import schedule
+import time
+import firebase_admin
+from firebase_admin import credentials, db
+from bs4 import BeautifulSoup
+import requests
+from datetime import datetime
+
+app = Flask(__name__)
+
+PRODUCTS = [
+    {'Name': 'Poluga 1g Tavex', 'url': 'https://investiciono-zlato.rs/zlatna-poluga-1g.html'},
+    {'Name': 'Poluga 1g ZS', 'url': 'https://tavex.rs/zlato/zlatna-poluga-1g-tavex/'},
+    # Dodajte ostale proizvode ovde
+]
+
+cred = credentials.Certificate(https://pricecompare-a1462-default-rtdb.europe-west1.firebasedatabase.app)
+firebase_admin.initialize_app(cred, {'databaseURL': https://pricecompare-a1462-default-rtdb.europe-west1.firebasedatabase.app})
+ref = db.reference('prices')
+
+def fetch_price(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        html = response.text
+        soup = BeautifulSoup(html, 'html.parser')
+        price_element = soup.find('span', class_='price')
+        if price_element:
+            price = price_element.text.strip()
+            return price
+    return None
+
+def update_prices():
+    for product in PRODUCTS:
+        new_price = fetch_price(product['url'])
+        if new_price:
+            ref.child(product['name']).update({'price': new_price, 'updated_at': str(datetime.now())})
+        else:
+            print(f"Failed to fetch price for {product['name']}")
+
+@app.route('/api/prices')
+def get_prices():
+    prices = ref.get()
+    return jsonify({'prices': prices})
+
+schedule.every(10).minutes.do(update_prices)
+
+if __name__ == '__main__':
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
